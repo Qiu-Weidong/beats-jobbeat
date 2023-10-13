@@ -3,7 +3,9 @@
 
 package config
 
-import "time"
+import (
+	"time"
+)
 
 type Config struct {
 	Period time.Duration `config:"period"`
