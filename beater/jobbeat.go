@@ -16,6 +16,8 @@ type jobbeat struct {
 	done   chan struct{}
 	config config.Config
 	client beat.Client
+
+	lastIndexTime time.Time
 }
 
 // New creates an instance of jobbeat.
@@ -28,6 +30,9 @@ func New(b *beat.Beat, cfg *common.Config) (beat.Beater, error) {
 	bt := &jobbeat{
 		done:   make(chan struct{}),
 		config: c,
+
+		// 初始化 lastIndexTime
+		lastIndexTime: time.Now(),
 	}
 	return bt, nil
 }
@@ -43,7 +48,6 @@ func (bt *jobbeat) Run(b *beat.Beat) error {
 	}
 
 	ticker := time.NewTicker(bt.config.Period)
-	counter := 1
 	for {
 		select {
 		case <-bt.done:
@@ -51,16 +55,16 @@ func (bt *jobbeat) Run(b *beat.Beat) error {
 		case <-ticker.C:
 		}
 
-		event := beat.Event{
-			Timestamp: time.Now(),
-			Fields: common.MapStr{
-				"type":    b.Info.Name,
-				"counter": counter,
-			},
-		}
-		bt.client.Publish(event)
+		// event := beat.Event{
+		// 	Timestamp: time.Now(),
+		// 	Fields: common.MapStr{
+		// 		"type":    b.Info.Name,
+		// 		"counter": counter,
+		// 	},
+		// }
+		// bt.client.Publish(event)
+		bt.collectJobs(bt.config.Path, b)
 		logp.Info("Event sent")
-		counter++
 	}
 }
 
@@ -68,4 +72,18 @@ func (bt *jobbeat) Run(b *beat.Beat) error {
 func (bt *jobbeat) Stop() {
 	bt.client.Close()
 	close(bt.done)
+}
+
+func (bt *jobbeat) collectJobs(baseDir string, b *beat.Beat) {
+	now := time.Now()
+	// 更新时间
+	bt.lastIndexTime = now
+
+	event := beat.Event{
+		Timestamp: now,
+		Fields: common.MapStr{
+			"type": "job",
+		},
+	}
+	bt.client.Publish(event)
 }
