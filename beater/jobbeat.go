@@ -1,10 +1,12 @@
 package beater
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/elastic/beats/v7/libbeat/beat"
@@ -34,8 +36,12 @@ func New(b *beat.Beat, cfg *common.Config) (beat.Beater, error) {
 		return nil, fmt.Errorf("Error reading config file: %v", err)
 	}
 
+	if !strings.HasSuffix(c.RegistrarPath, ".json") {
+		// 需要添加文件名
+		c.RegistrarPath = filepath.Join(c.RegistrarPath, "registrar.json")
+	}
 	// 可以使用 1m 来表示分钟 1h 来表示小时
-	// logp.Info("config period = %f", c.Period.Seconds())
+	logp.Info("config period = %f, config registrar %s", c.Period.Seconds(), c.RegistrarPath)
 
 	bt := &jobbeat{
 		done:   make(chan struct{}),
@@ -45,7 +51,7 @@ func New(b *beat.Beat, cfg *common.Config) (beat.Beater, error) {
 		lastIndexTime: time.Now(),
 
 		// 加载 registrar
-		registrar: loadRegistrar(),
+		registrar: loadRegistrar(c.RegistrarPath),
 	}
 	return bt, nil
 }
@@ -101,47 +107,14 @@ func (bt *jobbeat) collectJobs(baseDir string, b *beat.Beat) {
 				// 采集过, 则比较上次采集时间和修改时间
 				if last.Before(modTime) {
 					// 上次采集时间在修改时间之前, 表示采集之后有修改, 需要补充采集
-					bt.registrar[path] = now
+					bt.sendJob(path, b)
 					modified = true
-
-					// ioutil.ReadFile(path)
-					content, err := os.ReadFile(path)
-					if err != nil {
-						logp.Err("can not read file %s", path)
-						return nil
-					}
-
-					// 采集
-					event := beat.Event{
-						Timestamp: now,
-						Fields: common.MapStr{
-							"type":    "job",
-							"content": string(content),
-						},
-					}
-					bt.client.Publish(event)
-
 				}
 
 			} else {
 				// 没有采集过, 那么就采集它
-				bt.registrar[path] = now
+				bt.sendJob(path, b)
 				modified = true
-
-				content, err := os.ReadFile(path)
-				if err != nil {
-					logp.Err("can not read file %s", path)
-					return nil
-				}
-				// 采集
-				event := beat.Event{
-					Timestamp: now,
-					Fields: common.MapStr{
-						"type":    "job",
-						"content": string(content),
-					},
-				}
-				bt.client.Publish(event)
 			}
 
 		}
@@ -151,6 +124,9 @@ func (bt *jobbeat) collectJobs(baseDir string, b *beat.Beat) {
 	// todo 如果有修改, 则将 bt.registrar 写回文件
 	if modified {
 		// todo  写回文件
+		saveRegistrar(bt.config.RegistrarPath, bt.registrar)
+	} else {
+		logp.Info("no file added at this period.")
 	}
 
 	// 如果有错, 那么报错
@@ -160,19 +136,88 @@ func (bt *jobbeat) collectJobs(baseDir string, b *beat.Beat) {
 
 	// 更新时间
 	bt.lastIndexTime = now
-
-	// event := beat.Event{
-	// 	Timestamp: now,
-	// 	Fields: common.MapStr{
-	// 		"type": "job",
-	// 	},
-	// }
-	// bt.client.Publish(event)
 }
 
-func loadRegistrar() map[string]time.Time {
+func (bt *jobbeat) sendJob(path string, b *beat.Beat) {
+	now := time.Now()
+
+	bt.registrar[path] = now
+	content, err := os.ReadFile(path)
+	if err != nil {
+		logp.Err("can not read file %s", path)
+		return
+	}
+
+	// 采集
+	event := beat.Event{
+		Timestamp: now,
+		Fields: common.MapStr{
+			"type":     "job",
+			"content":  string(content),
+			"filename": filepath.Base(path),
+			"path":     path,
+		},
+	}
+	bt.client.Publish(event)
+}
+
+type item struct {
+	Path          string    `json: "path"`
+	CollectedTime time.Time `json: "collected_time"`
+}
+
+func loadRegistrar(registrarPath string) map[string]time.Time {
 
 	m := map[string]time.Time{}
 
+	// todo 加载 registrar
+	content, err := os.ReadFile(registrarPath)
+	if err != nil {
+		return m
+	}
+	var items []item
+	err = json.Unmarshal(content, &items)
+	if err != nil {
+		return m
+	}
+
+	for _, item := range items {
+		// 按道理应该使用更新的时间
+		m[item.Path] = item.CollectedTime
+	}
+
 	return m
+}
+
+func saveRegistrar(registrarPath string, m map[string]time.Time) {
+
+	// 需要先判断目录是否存在
+	dir := filepath.Dir(registrarPath)
+	if _, err := os.Stat(dir); err != nil && os.IsNotExist(err) {
+		// 首先创建目录
+		err = os.MkdirAll(dir, 0755)
+		if err != nil {
+			logp.Err("can not mkdir %s", dir)
+			return
+		}
+	}
+	file, err := os.Create(registrarPath)
+	if err != nil {
+		logp.Err("can not open file %s", registrarPath)
+		return
+	}
+	defer file.Close()
+
+	var items []item
+	// encoder := json.NewEncoder(file)
+	for key, value := range m {
+		items = append(items, item{Path: key, CollectedTime: value})
+	}
+	encoder := json.NewEncoder(file)
+	err = encoder.Encode(items)
+
+	if err != nil {
+		logp.Err("fail to write registrar.")
+	}
+
 }

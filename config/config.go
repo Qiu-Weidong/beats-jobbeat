@@ -11,6 +11,8 @@ type Config struct {
 	Period time.Duration `config:"period"`
 
 	Path string `config: "path"`
+
+	RegistrarPath string `config: "registrar_path"`
 }
 
 var DefaultConfig = Config{
@@ -18,4 +20,6 @@ var DefaultConfig = Config{
 	Period: 1 * time.Second,
 
 	Path: ".",
+
+	RegistrarPath: "./data/registrar",
 }
