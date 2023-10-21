@@ -20,6 +20,7 @@ type parameter struct {
 	Tag    string `xml:"tag,attr"`
 	UiName string `xml:"uiname,attr"`
 	Value  string `xml:",chardata"`
+	// Value  string `xml:",chardata"`
 }
 type jobinformation struct {
 	Project string `xml:"PROJECT"`
