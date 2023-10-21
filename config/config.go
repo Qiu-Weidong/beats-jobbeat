@@ -10,9 +10,9 @@ import (
 type Config struct {
 	Period time.Duration `config:"period"`
 
-	Path []string `config: "path"`
+	Path []string `config:"path"`
 
-	RegistrarPath string `config: "registrar_path"`
+	RegistrarPath string `config:"registrar_path"`
 }
 
 var DefaultConfig = Config{

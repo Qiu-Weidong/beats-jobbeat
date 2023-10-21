@@ -2,6 +2,7 @@ package beater
 
 import (
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"io/fs"
 	"os"
@@ -110,13 +111,13 @@ func (bt *jobbeat) collectJobs(baseDir string, b *beat.Beat) {
 				// 采集过, 则比较上次采集时间和修改时间
 				if last.Before(modTime) {
 					// 上次采集时间在修改时间之前, 表示采集之后有修改, 需要补充采集
-					bt.sendJob(path, b)
+					bt.sendJob(path, b, modTime)
 					modified = true
 				}
 
 			} else {
 				// 没有采集过, 那么就采集它
-				bt.sendJob(path, b)
+				bt.sendJob(path, b, modTime)
 				modified = true
 			}
 
@@ -141,7 +142,7 @@ func (bt *jobbeat) collectJobs(baseDir string, b *beat.Beat) {
 	bt.lastIndexTime = now
 }
 
-func (bt *jobbeat) sendJob(path string, b *beat.Beat) {
+func (bt *jobbeat) sendJob(path string, b *beat.Beat, modtime time.Time) {
 	now := time.Now()
 
 	bt.registrar[path] = now
@@ -151,22 +152,30 @@ func (bt *jobbeat) sendJob(path string, b *beat.Beat) {
 		return
 	}
 
+	// 解析 xml
+	var data job
+	err = xml.Unmarshal(content, &data)
+	if err != nil {
+		logp.Err("parse job error: %v", err)
+	}
+
 	// 采集
 	event := beat.Event{
 		Timestamp: now,
 		Fields: common.MapStr{
 			"type":     "job",
-			"content":  string(content),
+			"job":      data,
 			"filename": filepath.Base(path),
 			"path":     path,
+			"modtime":  modtime,
 		},
 	}
 	bt.client.Publish(event)
 }
 
 type item struct {
-	Path          string    `json: "path"`
-	CollectedTime time.Time `json: "collected_time"`
+	Path          string    `json:"path"`
+	CollectedTime time.Time `json:"collected_time"`
 }
 
 func loadRegistrar(registrarPath string) map[string]time.Time {
