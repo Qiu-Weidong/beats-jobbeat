@@ -5,6 +5,7 @@
 jobbeat:
   # Defines how often an event is sent to the output
   period: 10s
+  # 将 path 修改为列表
   path: "."
 
 # ================================== General ===================================

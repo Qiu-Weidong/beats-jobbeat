@@ -81,7 +81,10 @@ func (bt *jobbeat) Run(b *beat.Beat) error {
 		case <-ticker.C:
 		}
 
-		bt.collectJobs(bt.config.Path, b)
+		for _, p := range bt.config.Path {
+			bt.collectJobs(p, b)
+		}
+
 		logp.Info("Event sent")
 	}
 }
