@@ -156,7 +156,21 @@ func (bt *jobbeat) sendJob(path string, b *beat.Beat, modtime time.Time) {
 	var data job
 	err = xml.Unmarshal(content, &data)
 	if err != nil {
-		logp.Err("parse job error: %v", err)
+		logp.Err("parse job %s with error: %v", path, err)
+
+		// 如果解析出错，则直接将整个文件的内容放入 elastic search 数据库, 算了，不采集了
+		// event := beat.Event{
+		// 	Timestamp: now,
+		// 	Fields: common.MapStr{
+		// 		"type":     "job",
+		// 		"content":  string(content),
+		// 		"filename": filepath.Base(path),
+		// 		"path":     path,
+		// 		"modtime":  modtime,
+		// 	},
+		// }
+		// bt.client.Publish(event)
+
 		return
 	}
 
