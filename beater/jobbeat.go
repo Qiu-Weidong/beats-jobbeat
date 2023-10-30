@@ -157,6 +157,7 @@ func (bt *jobbeat) sendJob(path string, b *beat.Beat, modtime time.Time) {
 	err = xml.Unmarshal(content, &data)
 	if err != nil {
 		logp.Err("parse job error: %v", err)
+		return
 	}
 
 	// 采集
