@@ -82,8 +82,22 @@ func (bt *jobbeat) Run(b *beat.Beat) error {
 		case <-ticker.C:
 		}
 
-		for _, p := range bt.config.Path {
-			bt.collectJobs(p, b)
+		match, err := filepath.Glob("/tmp/job*")
+
+		if err != nil {
+			logp.Info("can't glob at /tmp")
+		}
+		for _, dir := range match {
+			fileInfo, err := os.Stat(dir)
+			if err != nil {
+				logp.Err("can't stat for %s", dir)
+				continue
+			}
+
+			// 判断是否为目录
+			if fileInfo.IsDir() {
+				bt.collectJobs(dir, b)
+			}
 		}
 
 		logp.Info("Event sent")
@@ -127,7 +141,6 @@ func (bt *jobbeat) collectJobs(baseDir string, b *beat.Beat) {
 
 	// todo 如果有修改, 则将 bt.registrar 写回文件
 	if modified {
-		// todo  写回文件
 		saveRegistrar(bt.config.RegistrarPath, bt.registrar)
 	} else {
 		logp.Info("no file added at this period.")
