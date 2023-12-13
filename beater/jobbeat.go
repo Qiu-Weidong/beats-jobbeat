@@ -82,21 +82,25 @@ func (bt *jobbeat) Run(b *beat.Beat) error {
 		case <-ticker.C:
 		}
 
+		// 如果定义了 path，那么就采集 path
+
 		match, err := filepath.Glob("/tmp/job*")
 
 		if err != nil {
+			// 无法查找 /tmp 目录
 			logp.Info("can't glob at /tmp")
-		}
-		for _, dir := range match {
-			fileInfo, err := os.Stat(dir)
-			if err != nil {
-				logp.Err("can't stat for %s", dir)
-				continue
-			}
+		} else {
+			for _, dir := range match {
+				fileInfo, err := os.Stat(dir)
+				if err != nil {
+					logp.Err("can't stat for %s", dir)
+					continue
+				}
 
-			// 判断是否为目录
-			if fileInfo.IsDir() {
-				bt.collectJobs(dir, b)
+				// 判断是否为目录
+				if fileInfo.IsDir() {
+					bt.collectJobs(dir, b)
+				}
 			}
 		}
 
