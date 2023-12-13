@@ -75,6 +75,7 @@ func (bt *jobbeat) Run(b *beat.Beat) error {
 	}
 
 	ticker := time.NewTicker(bt.config.Period)
+
 	for {
 		select {
 		case <-bt.done:
@@ -83,24 +84,30 @@ func (bt *jobbeat) Run(b *beat.Beat) error {
 		}
 
 		// 如果定义了 path，那么就采集 path
+		if len(bt.config.Path) == 0 {
+			match, err := filepath.Glob("/tmp/job*")
 
-		match, err := filepath.Glob("/tmp/job*")
+			if err != nil {
+				// 无法查找 /tmp 目录
+				logp.Info("can't glob at /tmp")
+			} else {
+				for _, dir := range match {
+					fileInfo, err := os.Stat(dir)
+					if err != nil {
+						logp.Err("can't stat for %s", dir)
+						continue
+					}
 
-		if err != nil {
-			// 无法查找 /tmp 目录
-			logp.Info("can't glob at /tmp")
+					// 判断是否为目录
+					if fileInfo.IsDir() {
+						bt.collectJobs(dir, b)
+					}
+				}
+			}
 		} else {
-			for _, dir := range match {
-				fileInfo, err := os.Stat(dir)
-				if err != nil {
-					logp.Err("can't stat for %s", dir)
-					continue
-				}
-
-				// 判断是否为目录
-				if fileInfo.IsDir() {
-					bt.collectJobs(dir, b)
-				}
+			// 定义了 path，采集 path 路径下的文件
+			for _, p := range bt.config.Path {
+				bt.collectJobs(p, b)
 			}
 		}
 

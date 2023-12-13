@@ -6,7 +6,8 @@ jobbeat:
   # Defines how often an event is sent to the output
   period: 10s
   # 如果指定了 path, 那么就采集 path 目录，即 $NGPDATA/Session 目录下边，否则，采集 /tmp/job*
-  path: "."
+  # 可以指定一个，也可以指定为列表, 如果要采集 /tmp 目录，那么这里就不要指定。
+  path: "/home/qiu/job/"
 
 # ================================== General ===================================
 

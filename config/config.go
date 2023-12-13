@@ -11,6 +11,8 @@ type Config struct {
 	Period time.Duration `config:"period"`
 
 	RegistrarPath string `config:"registrar_path"`
+
+	Path []string `config:"path"`
 }
 
 var DefaultConfig = Config{
@@ -18,4 +20,6 @@ var DefaultConfig = Config{
 	Period: 1 * time.Second,
 
 	RegistrarPath: "./data/registrar",
+
+	Path: []string{}, // 将默认路径设置为空，此时采集 /tmp 目录
 }
